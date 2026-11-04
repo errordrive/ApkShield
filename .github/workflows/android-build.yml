@@ -1,18 +1,19 @@
-name: ApkShield CI
+name: Android Cloud Build
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main", "master" ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
   build:
     name: Build ApkShield APK
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up JDK 17
@@ -21,10 +22,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Setup Gradle
+      - name: Setup Gradle 8.7
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.7'
@@ -35,12 +33,12 @@ jobs:
           sudo apt-get install -y -qq smali
           mkdir -p app/src/main/assets
           smali assemble tools/runtime-smali -o app/src/main/assets/apkshield_runtime.dex
+          ls -l app/src/main/assets/apkshield_runtime.dex
 
       - name: Decode signing keystore
         run: |
           mkdir -p app/src/main/resources
           echo "$KEYSTORE_BASE64" | base64 -d > app/src/main/resources/apkshield.p12
-          ls -l app/src/main/resources/apkshield.p12
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
@@ -65,9 +63,9 @@ jobs:
             app/build/outputs/apk/release/aligned.apk
           $BT/apksigner verify --print-certs "$OUT"
 
-      - name: Upload APK
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ApkShield-release
+          name: apkshield-release-apk
           path: app/build/outputs/apk/release/apkshield-release.apk
           retention-days: 30
