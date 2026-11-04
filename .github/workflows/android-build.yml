@@ -9,7 +9,7 @@ on:
 
 jobs:
   build:
-    name: Build ApkShield APK
+    name: Build Android APK
     runs-on: ubuntu-latest
 
     steps:
@@ -27,45 +27,15 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: Assemble runtime DEX
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq smali
-          mkdir -p app/src/main/assets
-          smali assemble tools/runtime-smali -o app/src/main/assets/apkshield_runtime.dex
-          ls -l app/src/main/assets/apkshield_runtime.dex
+      - name: Run Unit Tests
+        run: gradle testDebugUnitTest --stacktrace
 
-      - name: Decode signing keystore
-        run: |
-          mkdir -p app/src/main/resources
-          echo "$KEYSTORE_BASE64" | base64 -d > app/src/main/resources/apkshield.p12
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-
-      - name: Build Release APK
-        run: gradle assembleRelease --stacktrace
-
-      - name: Sign APK
-        env:
-          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
-        run: |
-          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
-          UNSIGNED=$(find app/build/outputs/apk/release -name '*-unsigned.apk' | head -1)
-          if [ -z "$UNSIGNED" ]; then UNSIGNED=$(find app/build/outputs/apk/release -name '*.apk' | head -1); fi
-          OUT=app/build/outputs/apk/release/apkshield-release.apk
-          $BT/zipalign -f -p 4 "$UNSIGNED" app/build/outputs/apk/release/aligned.apk
-          $BT/apksigner sign \
-            --ks app/src/main/resources/apkshield.p12 \
-            --ks-pass pass:"$KEYSTORE_PASS" \
-            --key-pass pass:"$KEYSTORE_PASS" \
-            --ks-key-alias apkshield \
-            --out "$OUT" \
-            app/build/outputs/apk/release/aligned.apk
-          $BT/apksigner verify --print-certs "$OUT"
+      - name: Build Debug APK
+        run: gradle assembleDebug --stacktrace
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: apkshield-release-apk
-          path: app/build/outputs/apk/release/apkshield-release.apk
-          retention-days: 30
+          name: apkshield-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
