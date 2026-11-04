@@ -36,22 +36,20 @@ jobs:
           mkdir -p app/src/main/assets
           smali assemble tools/runtime-smali -o app/src/main/assets/apkshield_runtime.dex
 
-      - name: Generate keystore
+      - name: Decode signing keystore
         run: |
           mkdir -p app/src/main/resources
-          keytool -genkeypair \
-            -keystore app/src/main/resources/apkshield.p12 \
-            -storetype PKCS12 \
-            -storepass apkshield \
-            -keypass apkshield \
-            -alias apkshield \
-            -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=ApkShield"
+          echo "$KEYSTORE_BASE64" | base64 -d > app/src/main/resources/apkshield.p12
+          ls -l app/src/main/resources/apkshield.p12
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
       - name: Build Release APK
         run: gradle assembleRelease --stacktrace
 
       - name: Sign APK
+        env:
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
         run: |
           BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
           UNSIGNED=$(find app/build/outputs/apk/release -name '*-unsigned.apk' | head -1)
@@ -60,8 +58,8 @@ jobs:
           $BT/zipalign -f -p 4 "$UNSIGNED" app/build/outputs/apk/release/aligned.apk
           $BT/apksigner sign \
             --ks app/src/main/resources/apkshield.p12 \
-            --ks-pass pass:apkshield \
-            --key-pass pass:apkshield \
+            --ks-pass pass:"$KEYSTORE_PASS" \
+            --key-pass pass:"$KEYSTORE_PASS" \
             --ks-key-alias apkshield \
             --out "$OUT" \
             app/build/outputs/apk/release/aligned.apk
